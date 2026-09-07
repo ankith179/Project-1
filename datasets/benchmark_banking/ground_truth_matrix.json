@@ -1,0 +1,81 @@
+{
+  "dataset_name": "benchmark_banking",
+  "version": "1.0",
+  "description": "Ground truth traceability matrix for banking service benchmark",
+  "requirement_to_code": {
+    "REQ-001": [
+      "datasets/benchmark_banking/src/auth_service.py::AuthService::authenticate_user",
+      "datasets/benchmark_banking/src/auth_service.py::AuthService::hash_password",
+      "datasets/benchmark_banking/src/auth_service.py::AuthService::register_user"
+    ],
+    "REQ-002": [
+      "datasets/benchmark_banking/src/account_service.py::AccountService::create_account",
+      "datasets/benchmark_banking/src/account_service.py::AccountService::generate_account_number"
+    ],
+    "REQ-003": [
+      "datasets/benchmark_banking/src/transfer_service.py::TransferService::process_transfer"
+    ],
+    "REQ-004": [
+      "datasets/benchmark_banking/src/transfer_service.py::TransferService::check_overdraft_allowance",
+      "datasets/benchmark_banking/src/transfer_service.py::TransferService::set_overdraft_limit"
+    ],
+    "REQ-005": [
+      "datasets/benchmark_banking/src/audit_service.py::AuditService::log_security_event",
+      "datasets/benchmark_banking/src/audit_service.py::AuditService::record_transaction_audit",
+      "datasets/benchmark_banking/src/audit_service.py::AuditService::query_audit_trail"
+    ],
+    "REQ-006": [
+      "datasets/benchmark_banking/src/notification_service.py::NotificationService::dispatch_transfer_alert",
+      "datasets/benchmark_banking/src/notification_service.py::NotificationService::send_login_notification",
+      "datasets/benchmark_banking/src/notification_service.py::NotificationService::format_alert_message"
+    ],
+    "REQ-007": [
+      "datasets/benchmark_banking/src/account_service.py::AccountService::get_balance",
+      "datasets/benchmark_banking/src/account_service.py::AccountService::generate_statement"
+    ],
+    "REQ-008": [
+      "datasets/benchmark_banking/src/auth_service.py::AuthService::check_user_role"
+    ],
+    "REQ-009": [
+      "datasets/benchmark_banking/src/transfer_service.py::TransferService::validate_daily_limits"
+    ],
+    "REQ-010": [
+      "datasets/benchmark_banking/src/account_service.py::AccountService::verify_kyc_status"
+    ]
+  },
+  "requirement_to_test": {
+    "REQ-001": [
+      "datasets/benchmark_banking/tests/test_auth.py::TestAuth::test_authenticate_valid_credentials",
+      "datasets/benchmark_banking/tests/test_auth.py::TestAuth::test_authenticate_invalid_password_locks_after_5_attempts"
+    ],
+    "REQ-002": [
+      "datasets/benchmark_banking/tests/test_account.py::TestAccount::test_create_account_with_initial_deposit"
+    ],
+    "REQ-003": [
+      "datasets/benchmark_banking/tests/test_transfer.py::TestTransfer::test_process_transfer_success"
+    ],
+    "REQ-004": [
+      "datasets/benchmark_banking/tests/test_transfer.py::TestTransfer::test_overdraft_protection_enforcement"
+    ],
+    "REQ-005": [
+      "datasets/benchmark_banking/tests/test_audit.py::TestAudit::test_log_security_event_immutable",
+      "datasets/benchmark_banking/tests/test_audit.py::TestAudit::test_record_transaction_audit_trail"
+    ],
+    "REQ-006": [
+      "datasets/benchmark_banking/tests/test_notification.py::TestNotification::test_dispatch_transfer_alert_masked",
+      "datasets/benchmark_banking/tests/test_notification.py::TestNotification::test_send_login_notification_security"
+    ],
+    "REQ-007": [
+      "datasets/benchmark_banking/tests/test_account.py::TestAccount::test_get_balance_inquiry"
+    ],
+    "REQ-008": [
+      "datasets/benchmark_banking/tests/test_auth.py::TestAuth::test_role_based_access_control"
+    ],
+    "REQ-009": [
+      "datasets/benchmark_banking/tests/test_transfer.py::TestTransfer::test_daily_withdrawal_limit_velocity"
+    ],
+    "REQ-010": [
+      "datasets/benchmark_banking/tests/test_account.py::TestAccount::test_kyc_verification_status"
+    ]
+  }
+}
