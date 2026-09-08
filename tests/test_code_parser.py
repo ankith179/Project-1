@@ -38,3 +38,17 @@ def standalone_helper():
     assert method_art.class_name == "PaymentGateway"
     assert "amount" in method_art.signature
     assert "ceil" in method_art.calls
+
+
+def test_parse_javascript_api_and_function(tmp_path):
+    source = tmp_path / "client.ts"
+    source.write_text(
+        "export async function login(user) { return fetch('/api/login'); }\n",
+        encoding="utf-8",
+    )
+
+    artifacts = CodeParser().parse_file(str(source))
+
+    assert any(item.artifact_type == "FUNCTION" and item.name == "login" for item in artifacts)
+    api = next(item for item in artifacts if item.artifact_type == "API")
+    assert api.name == "/api/login"

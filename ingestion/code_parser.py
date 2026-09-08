@@ -1,5 +1,6 @@
 import os
 import ast
+import re
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field, asdict
 
@@ -135,7 +136,8 @@ class PythonASTVisitor(ast.NodeVisitor):
 class CodeParser:
     """
     Parser for source code repositories.
-    Supports Python (via native AST) and Java.
+    Supports Python (via native AST), Java, and lightweight JavaScript/TypeScript
+    extraction for functions and HTTP API references.
     """
 
     def parse_file(self, file_path: str, repo_root: Optional[str] = None) -> List[ParsedCodeArtifact]:
@@ -149,6 +151,8 @@ class CodeParser:
             return self._parse_python(file_path, rel_path)
         elif ext == ".java":
             return self._parse_java(file_path, rel_path)
+        elif ext in {".js", ".jsx", ".ts", ".tsx"}:
+            return self._parse_javascript(file_path, rel_path)
         return []
 
     def _parse_python(self, file_path: str, rel_path: str) -> List[ParsedCodeArtifact]:
@@ -174,6 +178,31 @@ class CodeParser:
 
         visitor = PythonASTVisitor(rel_path, lines)
         visitor.visit(tree)
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for decorator in node.decorator_list:
+                if not isinstance(decorator, ast.Call) or not isinstance(decorator.func, ast.Attribute):
+                    continue
+                if decorator.func.attr not in {"route", "get", "post", "put", "patch", "delete"}:
+                    continue
+                if not decorator.args or not isinstance(decorator.args[0], ast.Constant):
+                    continue
+                endpoint = str(decorator.args[0].value)
+                method = "ROUTE" if decorator.func.attr == "route" else decorator.func.attr.upper()
+                visitor.artifacts.append(
+                    ParsedCodeArtifact(
+                        artifact_identifier=f"{rel_path}::API::{method}::{endpoint}",
+                        artifact_type="API",
+                        file_path=rel_path,
+                        name=endpoint,
+                        signature=f"{method} {endpoint}",
+                        line_start=node.lineno,
+                        line_end=getattr(node, "end_lineno", node.lineno),
+                        code_content="".join(lines[node.lineno - 1:getattr(node, "end_lineno", node.lineno)]),
+                        calls=[node.name],
+                    )
+                )
 
         # Also add module-level artifact
         module_doc = ast.get_docstring(tree)
@@ -189,7 +218,10 @@ class CodeParser:
             code_content=source,
             imports=visitor.file_imports
         )
-        return [module_art] + visitor.artifacts
+        unique: dict[str, ParsedCodeArtifact] = {}
+        for artifact in [module_art] + visitor.artifacts:
+            unique.setdefault(artifact.artifact_identifier, artifact)
+        return list(unique.values())
 
     def _parse_java(self, file_path: str, rel_path: str) -> List[ParsedCodeArtifact]:
         with open(file_path, "r", encoding="utf-8", errors="replace") as f:
@@ -231,7 +263,6 @@ class CodeParser:
                     )
             return artifacts
         except Exception:
-            # Fallback
             return [
                 ParsedCodeArtifact(
                     artifact_identifier=rel_path,
@@ -240,6 +271,62 @@ class CodeParser:
                     name=os.path.basename(file_path),
                     line_start=1,
                     line_end=len(lines),
-                    code_content=source
+                    code_content=source,
                 )
             ]
+
+    def _parse_javascript(self, file_path: str, rel_path: str) -> List[ParsedCodeArtifact]:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            source = f.read()
+        lines = source.splitlines(keepends=True)
+        artifacts = [
+            ParsedCodeArtifact(
+                artifact_identifier=rel_path,
+                artifact_type="MODULE",
+                file_path=rel_path,
+                name=os.path.basename(file_path),
+                line_start=1,
+                line_end=len(lines),
+                code_content=source,
+            )
+        ]
+        function_pattern = re.compile(
+            r"(?m)^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\("
+            r"|^(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*"
+            r"(?:async\s*)?\([^)]*\)\s*=>"
+        )
+        for match in function_pattern.finditer(source):
+            name = match.group(1) or match.group(2)
+            line_start = source[: match.start()].count("\n") + 1
+            artifacts.append(
+                ParsedCodeArtifact(
+                    artifact_identifier=f"{rel_path}::{name}",
+                    artifact_type="FUNCTION",
+                    file_path=rel_path,
+                    name=name,
+                    line_start=line_start,
+                    line_end=line_start,
+                    code_content=match.group(0),
+                )
+            )
+        api_pattern = re.compile(
+            r"(?m)(?:fetch|axios\.(?:get|post|put|patch|delete)|request)"
+            r"\s*\(\s*[`'\"]([^`'\"]+)[`'\"]"
+        )
+        for index, match in enumerate(api_pattern.finditer(source), start=1):
+            endpoint = match.group(1)
+            line_start = source[: match.start()].count("\n") + 1
+            artifacts.append(
+                ParsedCodeArtifact(
+                    artifact_identifier=f"{rel_path}::API::{index}",
+                    artifact_type="API",
+                    file_path=rel_path,
+                    name=endpoint,
+                    signature=f"HTTP client reference {endpoint}",
+                    line_start=line_start,
+                    line_end=line_start,
+                    code_content=match.group(0),
+                    calls=["fetch", "http"],
+                )
+            )
+        return artifacts

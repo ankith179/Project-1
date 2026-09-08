@@ -7,9 +7,7 @@ for hybrid retrieval. Core of VIGILANT Phase 2 RAG layer.
 from __future__ import annotations
 
 import os
-from typing import List, Dict, Any, Tuple, Optional
-
-import numpy as np
+from typing import List, Dict, Any, Optional
 
 from rag.embedder import ArtifactEmbedder
 from rag.vector_store import FAISSVectorStore
@@ -132,11 +130,20 @@ class RAGRetriever:
                 results.append({
                     "source": req_id,
                     "target": art_id,
+                    "artifact_id": art_id,
+                    "artifact_type": art.get("artifact_type", "CODE"),
+                    "path": art.get("file_path", ""),
+                    "location": {
+                        "line_start": art.get("line_start"),
+                        "line_end": art.get("line_end"),
+                    },
                     "target_type": "code",
                     "artifact": art,
                     "semantic_score": round(float(sem_score), 4),
                     "ir_score": round(float(ir_score), 4),
                     "final_score": round(float(final), 4),
+                    "score": round(float(final), 4),
+                    "reason": "semantic similarity with optional IR score fusion",
                     "method": method,
                     "status": "CANDIDATE",
                 })
@@ -154,11 +161,20 @@ class RAGRetriever:
                 results.append({
                     "source": req_id,
                     "target": art_id,
+                    "artifact_id": art_id,
+                    "artifact_type": "TEST",
+                    "path": art.get("file_path", ""),
+                    "location": {
+                        "line_start": art.get("line_start"),
+                        "line_end": art.get("line_end"),
+                    },
                     "target_type": "test",
                     "artifact": art,
                     "semantic_score": round(float(sem_score), 4),
                     "ir_score": round(float(ir_score), 4),
                     "final_score": round(float(final), 4),
+                    "score": round(float(final), 4),
+                    "reason": "semantic similarity with optional IR score fusion",
                     "method": method,
                     "status": "CANDIDATE",
                 })

@@ -1,4 +1,6 @@
 import os
+from datetime import datetime
+from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -49,10 +51,11 @@ def list_repositories(db: Session = Depends(get_db)):
 
 
 @router.get("/repositories/{repo_id}/summary")
-def get_repository_summary(repo_id: int, db: Session = Depends(get_db)):
+def get_repository_summary(repo_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
     repo = db.query(Repository).filter(Repository.id == repo_id).first()
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
+    created_at = repo.created_at
     return {
         "repository_id": repo.id,
         "name": repo.name,
@@ -60,6 +63,6 @@ def get_repository_summary(repo_id: int, db: Session = Depends(get_db)):
         "requirements_count": len(repo.requirements),
         "code_artifacts_count": len(repo.code_artifacts),
         "tests_count": len(repo.test_artifacts),
-        "created_at": repo.created_at.isoformat() if repo.created_at else None
+        "created_at": created_at.isoformat() if isinstance(created_at, datetime) else None
     }
 

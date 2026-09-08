@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database.connection import init_db
-from backend.routes import artifacts, ingestion
+from backend.routes import artifacts, ingestion, research
 
 
 @asynccontextmanager
@@ -30,6 +30,7 @@ app.add_middleware(
 
 app.include_router(ingestion.router)
 app.include_router(artifacts.router)
+app.include_router(research.router)
 
 
 @app.get("/api/health")

@@ -86,7 +86,7 @@ class IngestionPipeline:
         # 3. Parse Source Code and Tests
         for root, _, files in os.walk(abs_repo_path):
             for file in files:
-                if file.endswith((".py", ".java")):
+                if file.endswith((".py", ".java", ".js", ".jsx", ".ts", ".tsx")):
                     full_path = os.path.join(root, file)
                     rel_path = os.path.relpath(full_path, abs_repo_path).replace("\\", "/")
 

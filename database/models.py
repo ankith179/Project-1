@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy.orm import relationship, relationship as orm_relationship
 from database.connection import Base
 
 
@@ -19,6 +19,24 @@ class Repository(Base):
     test_artifacts = relationship("TestArtifact", back_populates="repository", cascade="all, delete-orphan")
     commits = relationship("Commit", back_populates="repository", cascade="all, delete-orphan")
     links = relationship("CandidateLink", back_populates="repository", cascade="all, delete-orphan")
+    canonical_artifacts = relationship(
+        "CanonicalArtifact", back_populates="repository", cascade="all, delete-orphan"
+    )
+    analysis_runs = relationship(
+        "AnalysisRun", back_populates="repository", cascade="all, delete-orphan"
+    )
+    findings = relationship(
+        "ConsistencyFinding", back_populates="repository", cascade="all, delete-orphan"
+    )
+    graph_relationships = relationship(
+        "GraphRelationship", back_populates="repository", cascade="all, delete-orphan"
+    )
+    evidence_records = relationship(
+        "EvidenceRecord", back_populates="repository", cascade="all, delete-orphan"
+    )
+    investigation_steps = relationship(
+        "InvestigationStep", back_populates="repository", cascade="all, delete-orphan"
+    )
 
 
 class Requirement(Base):
@@ -224,3 +242,178 @@ class CandidateLink(Base):
             "method": self.method,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class GraphRelationship(Base):
+    __tablename__ = "graph_relationships"
+    __table_args__ = (
+        UniqueConstraint(
+            "repo_id", "source_id", "target_id", "relationship", name="uq_graph_relationship"
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    repo_id = Column(Integer, ForeignKey("repositories.id"), nullable=False, index=True)
+    source_id = Column(String(512), nullable=False, index=True)
+    target_id = Column(String(512), nullable=False, index=True)
+    relationship = Column(String(100), nullable=False, index=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    repository = orm_relationship("Repository", back_populates="graph_relationships")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "repo_id": self.repo_id,
+            "source_id": self.source_id,
+            "target_id": self.target_id,
+            "relationship": self.relationship,
+            "metadata": json.loads(self.metadata_json) if self.metadata_json else {},
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class CanonicalArtifact(Base):
+    """Persisted projection of the typed artifact contract.
+
+    The parser-specific tables remain the compatibility API.  This table gives
+    services a stable identity and versioned content without changing those
+    existing tables.
+    """
+
+    __tablename__ = "canonical_artifacts"
+    __table_args__ = (UniqueConstraint("repo_id", "artifact_id", name="uq_canonical_repo_artifact"),)
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    repo_id = Column(Integer, ForeignKey("repositories.id"), nullable=False, index=True)
+    artifact_id = Column(String(128), nullable=False, index=True)
+    artifact_type = Column(String(50), nullable=False, index=True)
+    path = Column(String(1024), nullable=False, index=True)
+    name = Column(String(512), nullable=False)
+    version = Column(String(128), nullable=True, index=True)
+    commit_id = Column(String(64), nullable=True, index=True)
+    content_hash = Column(String(64), nullable=False)
+    content = Column(Text, nullable=False, default="")
+    source_location = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    repository = relationship("Repository", back_populates="canonical_artifacts")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "repo_id": self.repo_id,
+            "artifact_id": self.artifact_id,
+            "artifact_type": self.artifact_type,
+            "path": self.path,
+            "name": self.name,
+            "version": self.version,
+            "commit_id": self.commit_id,
+            "content_hash": self.content_hash,
+            "content": self.content,
+            "source_location": json.loads(self.source_location) if self.source_location else None,
+            "metadata": json.loads(self.metadata_json) if self.metadata_json else {},
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class AnalysisRun(Base):
+    """Reproducible record of an import or change analysis."""
+
+    __tablename__ = "analysis_runs"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    repo_id = Column(Integer, ForeignKey("repositories.id"), nullable=False, index=True)
+    run_type = Column(String(50), nullable=False)
+    base_version = Column(String(128), nullable=True)
+    target_version = Column(String(128), nullable=True)
+    status = Column(String(50), nullable=False, default="COMPLETED")
+    result_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    repository = relationship("Repository", back_populates="analysis_runs")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "repo_id": self.repo_id,
+            "run_type": self.run_type,
+            "base_version": self.base_version,
+            "target_version": self.target_version,
+            "status": self.status,
+            "result": json.loads(self.result_json or "{}"),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class ConsistencyFinding(Base):
+    """Deterministic consistency result with explicit provenance."""
+
+    __tablename__ = "consistency_findings"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    repo_id = Column(Integer, ForeignKey("repositories.id"), nullable=False, index=True)
+    run_id = Column(Integer, ForeignKey("analysis_runs.id"), nullable=True, index=True)
+    rule_id = Column(String(100), nullable=False, index=True)
+    status = Column(String(50), nullable=False)
+    severity = Column(String(30), nullable=False, default="MEDIUM")
+    confidence = Column(Float, nullable=False, default=0.0)
+    subject_id = Column(String(512), nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    evidence = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    repository = relationship("Repository", back_populates="findings")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "repo_id": self.repo_id,
+            "run_id": self.run_id,
+            "rule_id": self.rule_id,
+            "status": self.status,
+            "severity": self.severity,
+            "confidence": self.confidence,
+            "subject_id": self.subject_id,
+            "message": self.message,
+            "evidence": json.loads(self.evidence) if self.evidence else {},
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class EvidenceRecord(Base):
+    __tablename__ = "evidence_records"
+    __table_args__ = (
+        UniqueConstraint("repo_id", "evidence_id", name="uq_evidence_repo_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    repo_id = Column(Integer, ForeignKey("repositories.id"), nullable=False, index=True)
+    run_id = Column(Integer, ForeignKey("analysis_runs.id"), nullable=True, index=True)
+    evidence_id = Column(String(128), nullable=False, index=True)
+    artifact_id = Column(String(512), nullable=True, index=True)
+    path = Column(String(1024), nullable=True)
+    version = Column(String(128), nullable=True)
+    score = Column(Float, nullable=True)
+    reason = Column(String(255), nullable=True)
+    payload_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    repository = relationship("Repository", back_populates="evidence_records")
+
+
+class InvestigationStep(Base):
+    __tablename__ = "investigation_steps"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    repo_id = Column(Integer, ForeignKey("repositories.id"), nullable=False, index=True)
+    run_id = Column(Integer, ForeignKey("analysis_runs.id"), nullable=True, index=True)
+    step_order = Column(Integer, nullable=False)
+    tool_name = Column(String(100), nullable=False)
+    input_json = Column(Text, nullable=False, default="{}")
+    output_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    repository = relationship("Repository", back_populates="investigation_steps")

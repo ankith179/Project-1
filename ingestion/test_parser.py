@@ -117,6 +117,8 @@ class TestParser:
             return self._parse_python_tests(file_path, rel_path)
         elif ext == ".java":
             return self._parse_java_tests(file_path, rel_path)
+        elif ext in {".js", ".jsx", ".ts", ".tsx"}:
+            return self._parse_javascript_tests(file_path, rel_path)
         return []
 
     def _parse_python_tests(self, file_path: str, rel_path: str) -> List[ParsedTestArtifact]:
@@ -131,7 +133,10 @@ class TestParser:
 
         visitor = PythonTestVisitor(rel_path, lines)
         visitor.visit(tree)
-        return visitor.tests
+        unique: dict[str, ParsedTestArtifact] = {}
+        for artifact in visitor.tests:
+            unique.setdefault(artifact.test_identifier, artifact)
+        return list(unique.values())
 
     def _parse_java_tests(self, file_path: str, rel_path: str) -> List[ParsedTestArtifact]:
         # Basic Java test extraction regex matching @Test
@@ -154,6 +159,28 @@ class TestParser:
                     line_end=line_start + 10,
                     test_content=m.group(0),
                     assertions_count=1
+                )
+            )
+        return tests
+
+    def _parse_javascript_tests(self, file_path: str, rel_path: str) -> List[ParsedTestArtifact]:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            source = f.read()
+        tests: List[ParsedTestArtifact] = []
+        pattern = re.compile(r"(?m)^\s*(?:it|test)\s*\(\s*[`'\"]([^`'\"]+)[`'\"]")
+        for index, match in enumerate(pattern.finditer(source), start=1):
+            line_start = source[:match.start()].count("\n") + 1
+            tests.append(
+                ParsedTestArtifact(
+                    test_identifier=f"{rel_path}::{match.group(1)}",
+                    test_class=None,
+                    test_method=match.group(1),
+                    file_path=rel_path,
+                    line_start=line_start,
+                    line_end=line_start,
+                    test_content=match.group(0),
+                    assertions_count=1 if "expect(" in source[match.start():] else 0,
+                    target_refs=[],
                 )
             )
         return tests
