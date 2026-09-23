@@ -1,101 +1,32 @@
 # VIGILANT
 
-**LLM- and RAG-Enhanced Agentic Framework for Continuous Software Traceability and Consistency Assurance across Requirements, Code, and Tests**
+VIGILANT is a local, evidence-grounded prototype for continuous traceability
+and consistency analysis across requirements, source code, APIs, and tests.
 
-VIGILANT is an M.Tech research prototype and engineering framework that bridges the gap between software engineering artifacts (Natural Language Requirements, Java Source Code, and Test Suites) through hybrid Information Retrieval (IR), Vector-based Retrieval-Augmented Generation (RAG), and Large Language Model (LLM) reasoning agents.
+The rebuilt implementation is intentionally deterministic by default so that
+research experiments run on a CPU without API keys or model downloads.
 
----
+## Run
 
-## Key Features
-
-- **Multi-Modal Artifact Ingestion & Parsing**:
-  - Requirements Parser (`ingestion/requirements_parser.py`)
-  - Java AST Code Parser (`ingestion/code_parser.py`) powered by `javalang`
-  - Test Suite Parser (`ingestion/test_parser.py`)
-  - Git Commit & Diff History Parser (`ingestion/git_parser.py`)
-- **Classical IR Traceability Baselines (Phase 1)**:
-  - Vector Space Model (TF-IDF + Cosine Similarity)
-  - BM25 Okapi Probabilistic Retrieval (`traceability/ir_model.py`)
-  - Hybrid Weighted Fusion (`traceability/hybrid_model.py`)
-- **RAG Semantic Layer (Phase 2)**:
-  - Dense text embeddings via `sentence-transformers` (`all-MiniLM-L6-v2`)
-  - Fast local vector storage with FAISS (`rag/vector_store.py`)
-  - Hybrid RAG Retriever (`rag/retriever.py`)
-- **LLM Reasoning & Consistency Checking (Phase 3)**:
-  - Gemini API integration with structured Pydantic outputs (`llm/gemini_client.py`)
-  - Automated link justification and re-ranking
-  - Multi-artifact consistency verification (Requirement ↔ Code ↔ Tests)
-- **FastAPI REST Service & Database**:
-  - Full relational persistence via SQLAlchemy SQLite (`database/models.py`)
-  - REST endpoints for artifact exploration, ingestion, and link querying (`backend/`)
-- **Benchmark Evaluation Suite**:
-  - Research evaluation metrics: Precision@K, Recall@K, Mean Average Precision (MAP), Mean Reciprocal Rank (MRR)
-  - Automated benchmark runner with benchmark datasets (`evaluation/benchmark_runner.py`)
-
----
-
-## Project Structure
-
-```text
-├── agents/             # Autonomous agent orchestrators
-├── backend/            # FastAPI REST backend and endpoints
-│   └── routes/         # API routes for artifacts, ingestion, links
-├── database/           # SQLAlchemy database models and connection engine
-├── datasets/           # Software traceability benchmark datasets (e.g. eTour)
-├── evaluation/         # Traceability evaluation metrics (MAP, MRR, P@K, R@K)
-├── experiments/        # Research benchmark experiment scripts
-├── ingestion/          # Parsers for requirements, Java code, tests, and git
-├── llm/                # Gemini client, prompt templates, and reasoning
-├── rag/                # Embeddings, FAISS vector store, and semantic retriever
-├── scripts/            # CLI utilities and benchmark execution runners
-├── tests/              # Pytest test suite
-├── .gitignore          # Git exclusion rules
-├── requirements.txt    # Python package dependencies
-└── README.md           # Project documentation
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m vigilant.cli analyze . --requirements requirements.md
 ```
 
----
+The analyzer ingests a repository, extracts artifacts, creates lexical
+traceability links, builds a relationship graph, detects consistency findings,
+and writes a JSON report.
 
-## Getting Started
+## Architecture
 
-### 1. Prerequisites
-- Python 3.10+
-- Git
+- `vigilant/ingestion.py`: repository, requirements, Python, API, test, and Git
+  change ingestion.
+- `vigilant/traceability.py`: deterministic TF-IDF-like lexical retrieval and
+  evidence-bearing links.
+- `vigilant/graph.py`: bounded artifact traversal and change impact.
+- `vigilant/consistency.py`: deterministic consistency rules.
+- `vigilant/agent.py`: bounded evidence-gathering investigation loop.
+- `backend/app.py`: optional FastAPI service over the analysis workflow.
 
-### 2. Setup Virtual Environment
-```bash
-# Windows
-py -m venv .venv
-.venv\Scripts\activate
-
-# Linux / macOS
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### 3. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Configuration
-Copy the example environment file and set your Gemini API key (optional for mock testing):
-```bash
-copy .env.example .env
-```
-
-### 5. Run the Test Suite
-```bash
-pytest tests/
-```
-
-### 6. Start the API Server
-```bash
-uvicorn backend.app:app --reload --port 8000
-```
-API Documentation will be available at `http://127.0.0.1:8000/docs`.
-
----
-
-## Research & Authors
-- **Repository**: [https://github.com/ankith179/Project-1](https://github.com/ankith179/Project-1)
+LLM and embedding providers are extension points; no fabricated model output is
+used when they are unavailable.
